@@ -1,0 +1,55 @@
+name: Generate Stats Images
+
+on:
+  push:
+    branches: [ master ]
+  schedule:
+    - cron: "24 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -euxo pipefail {0}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7.0.1
+
+    - name: Downloads latest github-stats
+      run: |
+        mkdir -p zig-out/bin
+        curl --location --output 'zig-out/bin/github-stats' 'https://github.com/jstrieb/github-stats/releases/latest/download/github-stats_x86_64-linux'
+        sudo chmod +x zig-out/bin/github-stats
+
+    - name: Checkout generated branch
+      run: |
+        git config --global user.name  'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        # Push generated files to the generated branch
+        git pull
+        git checkout generated || git checkout -b generated
+
+    - name: Generate images
+      run: |
+        ./zig-out/bin/github-stats
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        EXCLUDE_REPOS: ${{ secrets.EXCLUDE_REPOS }}
+        EXCLUDE_LANGS: ${{ secrets.EXCLUDE_LANGS }}
+        EXCLUDE_PRIVATE: "false"
+        DEBUG: "false"
+        # TODO: Remove this when they get their API working again
+        # https://github.com/orgs/community/discussions/192970
+        MAX_RETRIES: 5
+
+    - name: Commit to the repo
+      run: |
+        git add .
+        # Force the build to succeed, even if no files were changed
+        git commit -m 'Update generated files' || true
+        git push --set-upstream origin generated
