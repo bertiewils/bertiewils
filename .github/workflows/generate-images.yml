@@ -33,6 +33,7 @@ jobs:
         # Push generated files to the generated branch
         git pull
         git checkout generated || git checkout -b generated
+        git merge master
 
     - name: Generate images
       run: |
